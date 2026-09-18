@@ -1,0 +1,812 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f7fb" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101521" media="(prefers-color-scheme: dark)">
+  <title>文章朗讀器</title>
+  <style>
+    :root {
+      color-scheme: light dark;
+      --bg: #f5f7fb;
+      --card: #fff;
+      --text: #172033;
+      --muted: #657089;
+      --accent: #2864dc;
+      --accent-hover: #174fb8;
+      --soft: #eef3ff;
+      --border: #dce3ef;
+      --danger: #b42318;
+      --danger-bg: #fff1f0;
+      --quote: #f5f7fb;
+      --shadow: 0 18px 45px rgba(29, 48, 84, .12);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101521;
+        --card: #191f2c;
+        --text: #edf2ff;
+        --muted: #aeb9d0;
+        --accent: #7ca8ff;
+        --accent-hover: #a0bfff;
+        --soft: #202d49;
+        --border: #333c50;
+        --danger: #ffaaa3;
+        --danger-bg: #371c21;
+        --quote: #202633;
+        --shadow: 0 18px 45px rgba(0, 0, 0, .28);
+      }
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      min-height: 100dvh;
+      background: var(--bg);
+      background: radial-gradient(circle at top, color-mix(in srgb, var(--accent) 11%, var(--bg)), var(--bg) 42%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", sans-serif;
+      line-height: 1.75;
+      -webkit-text-size-adjust: 100%;
+    }
+    main {
+      width: min(900px, calc(100% - 28px));
+      margin: 42px auto;
+      padding-bottom: max(28px, env(safe-area-inset-bottom));
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      box-shadow: var(--shadow);
+      padding: clamp(22px, 5vw, 44px);
+    }
+    .eyebrow {
+      margin: 0 0 6px;
+      color: var(--accent);
+      font-weight: 750;
+      letter-spacing: .06em;
+    }
+    #pageTitle {
+      margin: 0;
+      font-size: clamp(1.7rem, 5vw, 2.6rem);
+      line-height: 1.22;
+      overflow-wrap: anywhere;
+    }
+    .source {
+      margin: 12px 0 26px;
+      color: var(--muted);
+      overflow-wrap: anywhere;
+    }
+    .player { display: grid; gap: 14px; }
+    .buttons { display: flex; flex-wrap: wrap; gap: 10px; }
+    button, select, input { font: inherit; }
+    button {
+      min-height: 44px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 9px 16px;
+      background: var(--card);
+      color: var(--text);
+      cursor: pointer;
+      font-weight: 680;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    button:hover { border-color: var(--accent); }
+    button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+    button.primary:hover { background: var(--accent-hover); }
+    button:disabled { cursor: not-allowed; opacity: .5; }
+    .settings {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: end;
+    }
+    label { display: grid; gap: 6px; color: var(--muted); font-size: .92rem; }
+    select {
+      width: 100%;
+      min-height: 44px;
+      min-width: 0;
+      padding: 9px 12px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: var(--card);
+      color: var(--text);
+    }
+    .speed { min-width: 170px; }
+    .speed-line { display: flex; gap: 10px; align-items: center; }
+    input[type="range"] { width: 120px; accent-color: var(--accent); }
+    progress {
+      width: 100%;
+      height: 10px;
+      border: 0;
+      accent-color: var(--accent);
+    }
+    .status-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      color: var(--muted);
+      font-size: .92rem;
+    }
+    .error {
+      margin: 22px 0 0;
+      padding: 16px 18px;
+      border: 1px solid color-mix(in srgb, var(--danger) 40%, transparent);
+      border-radius: 14px;
+      background: var(--danger-bg);
+      color: var(--danger);
+      white-space: pre-line;
+    }
+    .hidden { display: none !important; }
+    .article {
+      margin-top: 34px;
+      padding-top: 28px;
+      border-top: 1px solid var(--border);
+    }
+    .article > :first-child { margin-top: 0; }
+    .article h1, .article h2, .article h3,
+    .article h4, .article h5, .article h6 {
+      margin: 1.75em 0 .65em;
+      line-height: 1.35;
+      scroll-margin-top: 16px;
+    }
+    .article h1 { font-size: 1.85rem; }
+    .article h2 { font-size: 1.5rem; padding-bottom: .28em; border-bottom: 1px solid var(--border); }
+    .article h3 { font-size: 1.25rem; }
+    .article p { margin: 0 0 1.15em; }
+    .article ul, .article ol { padding-left: 1.5em; margin: 0 0 1.2em; }
+    .article li + li { margin-top: .35em; }
+    .article blockquote {
+      margin: 1.25em 0;
+      padding: .8em 1em;
+      border-left: 4px solid var(--accent);
+      border-radius: 0 10px 10px 0;
+      background: var(--quote);
+      color: var(--muted);
+    }
+    .article blockquote p:last-child { margin-bottom: 0; }
+    .article code {
+      padding: .12em .35em;
+      border-radius: 5px;
+      background: var(--soft);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: .92em;
+    }
+    .article pre {
+      overflow-x: auto;
+      margin: 1.25em 0;
+      padding: 14px 16px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      background: var(--quote);
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    .article pre code { padding: 0; background: transparent; }
+    .article a { color: var(--accent); text-decoration-thickness: .08em; text-underline-offset: .15em; }
+    .article hr { border: 0; border-top: 1px solid var(--border); margin: 2em 0; }
+    .table-wrap { overflow-x: auto; margin: 1.3em 0; -webkit-overflow-scrolling: touch; }
+    table { width: 100%; border-collapse: collapse; min-width: 420px; }
+    th, td { padding: 9px 11px; border: 1px solid var(--border); text-align: left; vertical-align: top; }
+    th { background: var(--soft); }
+    .image-alt { color: var(--muted); font-style: italic; }
+    .loading { color: var(--muted); }
+    .help { margin: 24px 0 0; color: var(--muted); font-size: .88rem; }
+    .help code { padding: .1em .35em; border-radius: 5px; background: var(--soft); }
+    @media (max-width: 620px) {
+      main { margin: 14px auto; width: min(100% - 18px, 900px); }
+      .card { border-radius: 18px; }
+      .settings { grid-template-columns: 1fr; }
+      .speed { min-width: 0; }
+      .buttons button { flex: 1 1 auto; }
+    }
+    @media print {
+      body { background: #fff; }
+      main { width: 100%; margin: 0; }
+      .card { border: 0; box-shadow: none; padding: 0; }
+      .player, .help, .source { display: none; }
+      .article { margin-top: 1em; padding-top: 0; border: 0; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <section class="card">
+      <p class="eyebrow">Markdown 文章朗讀器</p>
+      <h1 id="pageTitle">正在載入文章…</h1>
+      <p class="source" id="sourceName"></p>
+
+      <div class="player" id="player" aria-label="朗讀控制">
+        <div class="buttons">
+          <button class="primary" id="play" type="button" disabled>▶ 開始朗讀</button>
+          <button id="pause" type="button" disabled>⏸ 暫停</button>
+          <button id="stop" type="button" disabled>■ 停止</button>
+        </div>
+
+        <div class="settings">
+          <label>語音
+            <select id="voice" aria-label="選擇語音">
+              <option value="">瀏覽器預設（台灣中文）</option>
+            </select>
+          </label>
+          <label class="speed">速度：<span id="rateValue">1.0×</span>
+            <span class="speed-line">
+              <span>慢</span>
+              <input id="rate" type="range" min="0.7" max="1.5" value="1" step="0.1" aria-label="朗讀速度">
+              <span>快</span>
+            </span>
+          </label>
+        </div>
+
+        <progress id="progress" max="100" value="0">0%</progress>
+        <div class="status-row">
+          <span id="status" aria-live="polite">等待文章載入</span>
+          <span id="counter">0 / 0</span>
+        </div>
+      </div>
+
+      <div class="error hidden" id="error" role="alert"></div>
+      <article class="article hidden" id="article"></article>
+      <p class="help">網址格式：<code>player.html?f=檔名.md</code>。Markdown 檔必須位於同一個 GitHub Pages 網站中。</p>
+    </section>
+  </main>
+
+  <script>
+    'use strict';
+
+    const synth = window.speechSynthesis;
+    const ui = {
+      title: document.querySelector('#pageTitle'),
+      source: document.querySelector('#sourceName'),
+      player: document.querySelector('#player'),
+      play: document.querySelector('#play'),
+      pause: document.querySelector('#pause'),
+      stop: document.querySelector('#stop'),
+      voice: document.querySelector('#voice'),
+      rate: document.querySelector('#rate'),
+      rateValue: document.querySelector('#rateValue'),
+      progress: document.querySelector('#progress'),
+      status: document.querySelector('#status'),
+      counter: document.querySelector('#counter'),
+      error: document.querySelector('#error'),
+      article: document.querySelector('#article')
+    };
+
+    const state = {
+      blocks: [],
+      queue: [],
+      index: 0,
+      voices: [],
+      mode: 'idle',
+      session: 0,
+      pauseTimer: 0
+    };
+
+    function plainInline(text) {
+      let output = String(text || '');
+      output = output.replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1');
+      output = output.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1');
+      output = output.replace(/<((?:https?:\/\/|mailto:)[^>]+)>/gi, '$1');
+      output = output.replace(/`([^`]*)`/g, '$1');
+      output = output.replace(/\*\*([^*]+)\*\*/g, '$1');
+      output = output.replace(/__([^_]+)__/g, '$1');
+      output = output.replace(/~~([^~]+)~~/g, '$1');
+      output = output.replace(/(^|\s)[*_]([^*_]+)[*_](?=\s|$|[，。！？；：,.!?;:])/g, '$1$2');
+      output = output.replace(/<[^>]+>/g, '');
+      return output.replace(/\\([\\`*{}\[\]()#+\-.!_>])/g, '$1').trim();
+    }
+
+    function speechText(text) {
+      return plainInline(text)
+        .replace(/^\s{0,3}#{1,6}\s+/gm, '')
+        .replace(/^\s{0,3}>\s?/gm, '')
+        .replace(/^\s{0,3}(?:[-+*]|\d+[.)])\s+/gm, '')
+        .replace(/^\s*\[[ xX]\]\s*/gm, '')
+        .replace(/^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)+\|?\s*$/gm, '')
+        .replace(/\|/g, '，')
+        .replace(/[*_~`#>]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    }
+
+    function safeHref(rawHref) {
+      const href = String(rawHref || '').trim().replace(/^<|>$/g, '');
+      if (!href) return '';
+      try {
+        const url = new URL(href, location.href);
+        if (['http:', 'https:', 'mailto:'].includes(url.protocol)) return url.href;
+      } catch (_) { /* 顯示文字即可 */ }
+      return '';
+    }
+
+    function appendInline(parent, text) {
+      const pattern = /(!?\[[^\]]*\]\([^)]+\)|`[^`]*`|\*\*[^*]+\*\*|__[^_]+__|~~[^~]+~~|\*[^*\n]+\*|_[^_\n]+_)/g;
+      let last = 0;
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        if (match.index > last) parent.appendChild(document.createTextNode(text.slice(last, match.index)));
+        const token = match[0];
+        let element;
+        let parsed;
+        if ((parsed = token.match(/^!\[([^\]]*)\]\(([^)]+)\)$/))) {
+          element = document.createElement('span');
+          element.className = 'image-alt';
+          element.textContent = parsed[1] ? `圖片：${parsed[1]}` : '圖片';
+        } else if ((parsed = token.match(/^\[([^\]]+)\]\(([^)]+)\)$/))) {
+          const href = safeHref(parsed[2].replace(/\s+["'][^"']*["']\s*$/, ''));
+          if (href) {
+            element = document.createElement('a');
+            element.href = href;
+            element.target = '_blank';
+            element.rel = 'noopener noreferrer';
+            element.textContent = parsed[1];
+          } else {
+            element = document.createTextNode(parsed[1]);
+          }
+        } else if (token.startsWith('`')) {
+          element = document.createElement('code');
+          element.textContent = token.slice(1, -1);
+        } else if (token.startsWith('**') || token.startsWith('__')) {
+          element = document.createElement('strong');
+          element.textContent = token.slice(2, -2);
+        } else if (token.startsWith('~~')) {
+          element = document.createElement('del');
+          element.textContent = token.slice(2, -2);
+        } else {
+          element = document.createElement('em');
+          element.textContent = token.slice(1, -1);
+        }
+        parent.appendChild(element);
+        last = pattern.lastIndex;
+      }
+      if (last < text.length) parent.appendChild(document.createTextNode(text.slice(last)));
+    }
+
+    function splitTableRow(line) {
+      let value = line.trim();
+      if (value.startsWith('|')) value = value.slice(1);
+      if (value.endsWith('|')) value = value.slice(0, -1);
+      const cells = [];
+      let cell = '';
+      let escaped = false;
+      for (const character of value) {
+        if (escaped) {
+          cell += character === '|' ? '|' : `\\${character}`;
+          escaped = false;
+        } else if (character === '\\') {
+          escaped = true;
+        } else if (character === '|') {
+          cells.push(cell.trim());
+          cell = '';
+        } else {
+          cell += character;
+        }
+      }
+      if (escaped) cell += '\\';
+      cells.push(cell.trim());
+      return cells;
+    }
+
+    function isTableDivider(line) {
+      const cells = splitTableRow(line);
+      return cells.length > 1 && cells.every(cell => /^:?-{3,}:?$/.test(cell));
+    }
+
+    function stripFrontMatter(markdown) {
+      return markdown.replace(/^---\s*\r?\n[\s\S]*?\r?\n---\s*(?:\r?\n|$)/, '');
+    }
+
+    function parseMarkdown(markdown) {
+      const source = stripFrontMatter(markdown.replace(/^\uFEFF/, '').replace(/\r\n?/g, '\n'));
+      const lines = source.split('\n');
+      const blocks = [];
+      let i = 0;
+
+      function add(kind, text, extra = {}) {
+        const spoken = speechText(text);
+        blocks.push({ kind, text, spoken, ...extra });
+      }
+
+      while (i < lines.length) {
+        const line = lines[i];
+        if (!line.trim()) { i += 1; continue; }
+
+        const fence = line.match(/^\s*```\s*([^\s`]*)\s*$/);
+        if (fence) {
+          const content = [];
+          i += 1;
+          while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) content.push(lines[i++]);
+          if (i < lines.length) i += 1;
+          add('code', content.join('\n'), { language: fence[1] || '' });
+          continue;
+        }
+
+        const heading = line.match(/^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$/);
+        if (heading) {
+          add('heading', heading[2], { level: heading[1].length });
+          i += 1;
+          continue;
+        }
+
+        if (/^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+          blocks.push({ kind: 'hr', text: '', spoken: '' });
+          i += 1;
+          continue;
+        }
+
+        if (line.includes('|') && i + 1 < lines.length && isTableDivider(lines[i + 1])) {
+          const rows = [splitTableRow(line)];
+          i += 2;
+          while (i < lines.length && lines[i].includes('|') && lines[i].trim()) {
+            rows.push(splitTableRow(lines[i]));
+            i += 1;
+          }
+          const spokenRows = rows.map(row => row.map(speechText).filter(Boolean).join('，')).filter(Boolean);
+          blocks.push({ kind: 'table', rows, text: rows.flat().join(' '), spoken: spokenRows.join('。') });
+          continue;
+        }
+
+        if (/^\s{0,3}>\s?/.test(line)) {
+          const quote = [];
+          while (i < lines.length && /^\s{0,3}>\s?/.test(lines[i])) {
+            quote.push(lines[i].replace(/^\s{0,3}>\s?/, ''));
+            i += 1;
+          }
+          add('quote', quote.join(' '));
+          continue;
+        }
+
+        const listMatch = line.match(/^\s{0,3}([-+*]|\d+[.)])\s+(.+)$/);
+        if (listMatch) {
+          const ordered = /^\d/.test(listMatch[1]);
+          const items = [];
+          while (i < lines.length) {
+            const item = lines[i].match(/^\s{0,3}([-+*]|\d+[.)])\s+(.+)$/);
+            if (!item || /^\d/.test(item[1]) !== ordered) break;
+            items.push(item[2].replace(/^\[[ xX]\]\s*/, ''));
+            i += 1;
+          }
+          blocks.push({
+            kind: ordered ? 'ol' : 'ul',
+            items,
+            text: items.join(' '),
+            spoken: items.map(speechText).filter(Boolean).join('。')
+          });
+          continue;
+        }
+
+        const paragraph = [line.trim()];
+        i += 1;
+        while (i < lines.length && lines[i].trim()) {
+          const next = lines[i];
+          if (/^\s*```/.test(next) || /^\s{0,3}#{1,6}\s+/.test(next) ||
+              /^\s{0,3}>\s?/.test(next) || /^\s{0,3}([-+*]|\d+[.)])\s+/.test(next) ||
+              /^\s{0,3}(?:-{3,}|\*{3,}|_{3,})\s*$/.test(next) ||
+              (next.includes('|') && i + 1 < lines.length && isTableDivider(lines[i + 1]))) break;
+          paragraph.push(next.trim());
+          i += 1;
+        }
+        add('paragraph', paragraph.join(' '));
+      }
+      return blocks;
+    }
+
+    function renderArticle(blocks) {
+      ui.article.replaceChildren();
+      for (const block of blocks) {
+        let element;
+        if (block.kind === 'heading') {
+          element = document.createElement(`h${Math.min(6, Math.max(1, block.level))}`);
+          appendInline(element, block.text);
+        } else if (block.kind === 'paragraph') {
+          element = document.createElement('p');
+          appendInline(element, block.text);
+        } else if (block.kind === 'quote') {
+          element = document.createElement('blockquote');
+          const paragraph = document.createElement('p');
+          appendInline(paragraph, block.text);
+          element.appendChild(paragraph);
+        } else if (block.kind === 'ul' || block.kind === 'ol') {
+          element = document.createElement(block.kind);
+          for (const item of block.items) {
+            const li = document.createElement('li');
+            appendInline(li, item);
+            element.appendChild(li);
+          }
+        } else if (block.kind === 'code') {
+          element = document.createElement('pre');
+          const code = document.createElement('code');
+          code.textContent = block.text;
+          if (block.language) code.dataset.language = block.language;
+          element.appendChild(code);
+        } else if (block.kind === 'hr') {
+          element = document.createElement('hr');
+        } else if (block.kind === 'table') {
+          element = document.createElement('div');
+          element.className = 'table-wrap';
+          const table = document.createElement('table');
+          block.rows.forEach((row, rowIndex) => {
+            const tr = document.createElement('tr');
+            row.forEach(cell => {
+              const td = document.createElement(rowIndex === 0 ? 'th' : 'td');
+              appendInline(td, cell);
+              tr.appendChild(td);
+            });
+            (rowIndex === 0 ? table.createTHead() : (table.tBodies[0] || table.createTBody())).appendChild(tr);
+          });
+          element.appendChild(table);
+        }
+        if (element) ui.article.appendChild(element);
+      }
+      ui.article.classList.remove('hidden');
+    }
+
+    function splitForSpeech(text, maxLength = 125) {
+      const sentences = text.match(/[^。！？；!?;]+[。！？；!?;]?/g) || [text];
+      const chunks = [];
+      let buffer = '';
+      for (const sentence of sentences) {
+        const piece = sentence.trim();
+        if (!piece) continue;
+        if (buffer && (buffer + piece).length > maxLength) {
+          chunks.push(buffer);
+          buffer = piece;
+        } else {
+          buffer += piece;
+        }
+        while (buffer.length > maxLength) {
+          let cut = Math.max(buffer.lastIndexOf('，', maxLength), buffer.lastIndexOf(',', maxLength), buffer.lastIndexOf(' ', maxLength));
+          if (cut < 35) cut = maxLength;
+          chunks.push(buffer.slice(0, cut + 1).trim());
+          buffer = buffer.slice(cut + 1).trim();
+        }
+      }
+      if (buffer) chunks.push(buffer);
+      return chunks;
+    }
+
+    function buildQueue(blocks) {
+      const queue = [];
+      for (const block of blocks) {
+        if (!block.spoken) continue;
+        const chunks = splitForSpeech(block.spoken);
+        chunks.forEach((text, index) => {
+          const last = index === chunks.length - 1;
+          let pauseAfter = 90;
+          if (last && block.kind === 'heading') pauseAfter = 700;
+          else if (last && ['paragraph', 'quote', 'code', 'table'].includes(block.kind)) pauseAfter = 420;
+          else if (last && ['ul', 'ol'].includes(block.kind)) pauseAfter = 320;
+          queue.push({ text, pauseAfter });
+        });
+      }
+      return queue;
+    }
+
+    function preferredVoiceIndex(voices) {
+      let index = voices.findIndex(voice => /^zh[-_]TW$/i.test(voice.lang));
+      if (index < 0) index = voices.findIndex(voice => /^zh[-_]TW/i.test(voice.lang));
+      if (index < 0) index = voices.findIndex(voice => /^zh/i.test(voice.lang));
+      return index;
+    }
+
+    function populateVoices() {
+      if (!synth) return;
+      const selectedUri = state.voices[Number(ui.voice.value)]?.voiceURI || '';
+      state.voices = synth.getVoices().slice().sort((a, b) => {
+        const rank = voice => /^zh[-_]TW/i.test(voice.lang) ? 0 : /^zh/i.test(voice.lang) ? 1 : 2;
+        return rank(a) - rank(b) || a.name.localeCompare(b.name);
+      });
+      ui.voice.replaceChildren();
+      if (!state.voices.length) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = '瀏覽器預設（台灣中文）';
+        ui.voice.appendChild(option);
+        return;
+      }
+      state.voices.forEach((voice, index) => {
+        const option = document.createElement('option');
+        option.value = String(index);
+        option.textContent = `${voice.name}（${voice.lang}）`;
+        ui.voice.appendChild(option);
+      });
+      const previous = state.voices.findIndex(voice => voice.voiceURI === selectedUri);
+      const preferred = preferredVoiceIndex(state.voices);
+      ui.voice.value = String(previous >= 0 ? previous : Math.max(0, preferred));
+    }
+
+    function updateProgress() {
+      const total = state.queue.length;
+      const completed = state.mode === 'done' ? total : Math.min(state.index, total);
+      const percent = total ? Math.round((completed / total) * 100) : 0;
+      ui.progress.value = percent;
+      ui.progress.textContent = `${percent}%`;
+      const shown = state.mode === 'playing' || state.mode === 'paused' ? Math.min(state.index + 1, total) : completed;
+      ui.counter.textContent = `${shown} / ${total}`;
+    }
+
+    function updateControls() {
+      const active = state.mode === 'playing' || state.mode === 'paused';
+      ui.play.disabled = active || !state.queue.length;
+      ui.pause.disabled = !active;
+      ui.stop.disabled = !active;
+      ui.voice.disabled = active;
+      ui.rate.disabled = active;
+      ui.pause.textContent = state.mode === 'paused' ? '▶ 繼續' : '⏸ 暫停';
+    }
+
+    function clearPauseTimer() {
+      if (state.pauseTimer) window.clearTimeout(state.pauseTimer);
+      state.pauseTimer = 0;
+    }
+
+    function finishReading() {
+      state.mode = 'done';
+      state.index = state.queue.length;
+      ui.status.textContent = '朗讀完畢';
+      updateProgress();
+      updateControls();
+    }
+
+    function speakCurrent(session) {
+      if (session !== state.session || state.mode !== 'playing') return;
+      if (state.index >= state.queue.length) { finishReading(); return; }
+
+      const item = state.queue[state.index];
+      const utterance = new SpeechSynthesisUtterance(item.text);
+      const selected = state.voices[Number(ui.voice.value)];
+      if (selected) utterance.voice = selected;
+      utterance.lang = selected?.lang || 'zh-TW';
+      utterance.rate = Number(ui.rate.value);
+      utterance.pitch = 1;
+      utterance.volume = 1;
+      utterance.onstart = () => {
+        if (session !== state.session) return;
+        ui.status.textContent = '正在朗讀';
+        updateProgress();
+      };
+      utterance.onend = () => {
+        if (session !== state.session || state.mode !== 'playing') return;
+        state.index += 1;
+        updateProgress();
+        if (state.index >= state.queue.length) { finishReading(); return; }
+        state.pauseTimer = window.setTimeout(() => speakCurrent(session), item.pauseAfter);
+      };
+      utterance.onerror = event => {
+        if (session !== state.session || ['canceled', 'interrupted'].includes(event.error)) return;
+        state.mode = 'idle';
+        ui.status.textContent = '朗讀失敗，請更換語音或重新整理頁面';
+        updateControls();
+      };
+      synth.speak(utterance);
+    }
+
+    function startReading() {
+      if (!synth || !state.queue.length) return;
+      clearPauseTimer();
+      state.session += 1;
+      synth.cancel();
+      state.index = 0;
+      state.mode = 'playing';
+      ui.status.textContent = '準備朗讀…';
+      updateProgress();
+      updateControls();
+      speakCurrent(state.session);
+    }
+
+    function togglePause() {
+      if (!synth) return;
+      clearPauseTimer();
+      if (state.mode === 'playing') {
+        state.session += 1;
+        state.mode = 'paused';
+        synth.cancel();
+        ui.status.textContent = '已暫停';
+      } else if (state.mode === 'paused') {
+        state.session += 1;
+        state.mode = 'playing';
+        ui.status.textContent = '繼續朗讀…';
+        speakCurrent(state.session);
+      }
+      updateControls();
+    }
+
+    function stopReading() {
+      clearPauseTimer();
+      state.session += 1;
+      state.mode = 'idle';
+      state.index = 0;
+      synth?.cancel();
+      ui.status.textContent = '已停止';
+      updateProgress();
+      updateControls();
+    }
+
+    function showError(message) {
+      stopReading();
+      ui.title.textContent = '無法載入文章';
+      document.title = '無法載入文章｜文章朗讀器';
+      ui.source.textContent = '';
+      ui.article.classList.add('hidden');
+      ui.error.textContent = message;
+      ui.error.classList.remove('hidden');
+      ui.player.classList.add('hidden');
+    }
+
+    function resolveMarkdownUrl(fileParam) {
+      if (!fileParam) throw new Error('網址缺少 Markdown 檔名。\n請使用：player.html?f=檔名.md');
+      if (!/\.md(?:own)?$/i.test(fileParam.trim())) throw new Error('網址參數 f 必須指向 .md 或 .markdown 檔案。');
+      const target = new URL(fileParam, new URL('.', location.href));
+      if (target.origin !== location.origin) {
+        throw new Error('基於安全限制，只能讀取同一個 GitHub Pages 網站內的 Markdown 檔案。');
+      }
+      return target;
+    }
+
+    async function loadArticle() {
+      if (!synth || typeof SpeechSynthesisUtterance === 'undefined') {
+        showError('這個瀏覽器不支援語音朗讀。請改用最新版 Safari、Chrome 或 Edge。');
+        return;
+      }
+
+      try {
+        const fileParam = new URLSearchParams(location.search).get('f');
+        const markdownUrl = resolveMarkdownUrl(fileParam);
+        ui.source.textContent = decodeURIComponent(markdownUrl.pathname.split('/').pop() || fileParam);
+        ui.status.textContent = '正在載入文章…';
+
+        const response = await fetch(markdownUrl.href, { cache: 'no-cache', credentials: 'same-origin' });
+        if (!response.ok) {
+          const detail = response.status === 404 ? '找不到檔案（404）' : `伺服器回傳 ${response.status} ${response.statusText}`;
+          throw new Error(`${detail}。\n請確認檔名、大小寫與路徑正確，而且檔案已發布到 GitHub Pages。`);
+        }
+        const markdown = await response.text();
+        if (!markdown.trim()) throw new Error('Markdown 檔案是空的，沒有可顯示或朗讀的內容。');
+
+        state.blocks = parseMarkdown(markdown);
+        state.queue = buildQueue(state.blocks);
+        if (!state.queue.length) throw new Error('檔案已讀取，但移除 Markdown 標記後沒有可朗讀的文字。');
+
+        const firstHeading = state.blocks.find(block => block.kind === 'heading' && block.spoken);
+        const title = firstHeading?.spoken || '未命名文章';
+        ui.title.textContent = title;
+        document.title = `${title}｜文章朗讀器`;
+        ui.error.classList.add('hidden');
+        ui.player.classList.remove('hidden');
+        renderArticle(state.blocks);
+        state.mode = 'idle';
+        state.index = 0;
+        ui.status.textContent = '準備就緒';
+        updateProgress();
+        updateControls();
+      } catch (error) {
+        const fileHint = location.protocol === 'file:' ? '\n這個播放器需要透過 GitHub Pages（https://）開啟，不能直接用 file:// 測試 fetch。' : '';
+        showError(`${error.message || '發生未知錯誤。'}${fileHint}`);
+      }
+    }
+
+    ui.play.addEventListener('click', startReading);
+    ui.pause.addEventListener('click', togglePause);
+    ui.stop.addEventListener('click', stopReading);
+    ui.rate.addEventListener('input', () => {
+      ui.rateValue.textContent = `${Number(ui.rate.value).toFixed(1)}×`;
+    });
+    window.addEventListener('pagehide', () => {
+      clearPauseTimer();
+      state.session += 1;
+      synth?.cancel();
+    });
+
+    populateVoices();
+    if (synth) {
+      synth.onvoiceschanged = populateVoices;
+      [250, 800, 1800].forEach(delay => window.setTimeout(populateVoices, delay));
+    }
+    loadArticle();
+  </script>
+</body>
+</html>
